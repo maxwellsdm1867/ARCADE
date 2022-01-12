@@ -35,7 +35,7 @@ frame_number = double(string(sub_data{:,6}));%frame number for alignment
 vod_read = VideoReader(nov); %read the correspondence video
 frame_start = frame_number(1);%start frame
 frame_end = frame_number(end);%end frame
-
+%compress the video
 compress_factor = 0.25;
 test_frame= read(vod_read,1);
 down_test_frame = imresize(test_frame(:,:,1), compress_factor);
