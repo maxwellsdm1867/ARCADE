@@ -50,12 +50,12 @@ parfor i = 1:length(frame_number) %use parallel worker for faster computing
     video_matrix(:,i)= reshape( temp_frame2,[],1);% this shold obtain the frames in their order
 end
 
-%sainity check
-% figure
-% for k = 500:15000
-%     pause(0.0005)
-%  imagesc(reshape(video_matrix(:,k),frame_size(1), frame_size(2)))
-% end
+sainity check
+figure
+for k = 500:15000
+    pause(0.0005)
+ imagesc(reshape(video_matrix(:,k),frame_size(1), frame_size(2)))
+end
 
 
 %% Dimension reduction using SVD
@@ -76,19 +76,55 @@ sv = diag(S);
 figure
 stairs(cumsum(sv)/sum(sv))
 V_conj = V';
-r = 5000;%take first 5000 pc 
-V_r = V(1:r,:);%reduce to r-dimensions
+r = 93;%take first 5000 pc 
+V_r = V_conj(1:r,:);%reduce to r-dimensions
+%V_r = V_conj(:,1:r);%reduce to r-dimensions
+
 S_r = S(1:r,1:r);%reduce to r-dimensions
 A = S_r*V_r;%project to r-dimensions
-
 %% lasso
-B = lasso(A',calcuim_trace');
+[B,FitInfo] = lasso(A',calcuim_trace);
+mean_c = mean(calcuim_trace);
+normlized_c =calcuim_trace-mean_c;
+%beta =normlized_c\A';
+%y_hat = beta*A;
 Bb= B(:,1)';
-k = U(:,1:r);
-imr = k*Bb';
+U_r = U(:,1:r);
+imr = U_r*Bb';
+y_hat = (Bb*A)+FitInfo.Intercept(1)*ones(1,14527);
 figure
-imagesc(down_test_frame)
+hold on 
+plot(calcuim_trace)
+plot(y_hat')
+hold off 
+legend('Ca2+ trace','model prediction')
+title(['number of the pc used ',num2str(r)])
+err_pre = y_hat-calcuim_trace;
+kk = histogram(err_pre);
+
+figure
+imagesc(down_test_frame);
 colormap(gray)
 hold on
 imagesc(reshape(imr,size(down_test_frame,1),size(down_test_frame,2)))
 colormap defult
+
+
+%%
+%debugging
+r = 93;%take first 5000 pc 
+V_r = V_conj(1:r,:);%reduce to r-dimensions
+S_r = S(1:r,1:r);%reduce to r-dimensions
+A = S_r*V_r;%project to r-dimensions
+% lasso
+[B,FitInfo] = lasso(A',calcuim_trace);%lasso
+Bb= B(:,1)';
+U_r = U(:,1:r);
+y_hat = (Bb*A)+FitInfo.Intercept(1)*ones(1,length(calcuim_trace));%the out put
+figure
+hold on 
+plot(calcuim_trace)
+plot(y_hat')
+hold off 
+legend('Ca2+ trace','model prediction')
+title(['number of the PCs used: ',num2str(r)])
