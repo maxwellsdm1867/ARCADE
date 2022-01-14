@@ -11,7 +11,7 @@ clc
 %Mian steps are as follow:
 % 0. Specify working directory and load the raw and metadata
 % 1. Data parcing and extracting for the csv data file
-% 2. Video importing and processing
+% 2. Video importing and processing, masking two balls
 % 3. Dimension reduction using SVD
 
 %% Specify working directory and load the raw and metadata
@@ -37,26 +37,33 @@ frame_start = frame_number(1);%start frame
 frame_end = frame_number(end);%end frame
 %compress the video
 compress_factor = 0.25;
-test_frame= read(vod_read,1);
+test_frame= read(vod_read,100);
 down_test_frame = imresize(test_frame(:,:,1), compress_factor);
 
+%masking 
+ball1= [416,-660,857];%upper ball [centerX1,centerY1,radius1]
+ball2= [280, 1290,860];%lower ball [centerX1,centerY1,radius1]
+ref_frame_m = test_frame(:,:,1);
+douball_mask =fly_O_msk(ball1,ball2,ref_frame_m);% mask image
+figure
+imagesc(douball_mask.*double(ref_frame_m));
 
 video_matrix = zeros(size(down_test_frame,1)*size(down_test_frame,2),length(frame_number));% data matrix, each column represent one frame
 parfor i = 1:length(frame_number) %use parallel worker for faster computing 
     frame_idx = frame_number(i);
     temp_frame = read(vod_read,frame_idx);
-    temp_frame1 = temp_frame(:,:,1);%reduce to 2 dimension;
+    temp_frame1 = double(temp_frame(:,:,1)).*douball_mask;%reduce to 2 dimension and mask;
     temp_frame2 = imresize(temp_frame1, compress_factor);%video compressing
     video_matrix(:,i)= reshape( temp_frame2,[],1);% this shold obtain the frames in their order
 end
 
-sainity check
-figure
-for k = 500:15000
-    pause(0.0005)
- imagesc(reshape(video_matrix(:,k),frame_size(1), frame_size(2)))
-end
-
+%sainity check
+% figure
+% for k = 500:15000
+%     pause(0.0005)
+%  imagesc(reshape(video_matrix(:,k),size(down_test_frame,1), size(down_test_frame,2)))
+% end
+% 
 
 %% Dimension reduction using SVD
 
@@ -74,9 +81,10 @@ toc
 
 sv = diag(S);
 figure
-stairs(cumsum(sv)/sum(sv))
+stairs((cumsum(sv)/sum(sv)).*(cumsum(sv)/sum(sv)))
+title('Explained varience')
 V_conj = V';
-r = 93;%take first 5000 pc 
+r = 100;%take first r pcs 
 V_r = V_conj(1:r,:);%reduce to r-dimensions
 %V_r = V_conj(:,1:r);%reduce to r-dimensions
 
@@ -84,8 +92,8 @@ S_r = S(1:r,1:r);%reduce to r-dimensions
 A = S_r*V_r;%project to r-dimensions
 %% lasso
 [B,FitInfo] = lasso(A',calcuim_trace);
-mean_c = mean(calcuim_trace);
-normlized_c =calcuim_trace-mean_c;
+% mean_c = mean(calcuim_trace);
+% normlized_c =calcuim_trace-mean_c;
 %beta =normlized_c\A';
 %y_hat = beta*A;
 Bb= B(:,1)';
@@ -105,14 +113,14 @@ kk = histogram(err_pre);
 figure
 imagesc(down_test_frame);
 colormap(gray)
-hold on
-imagesc(reshape(imr,size(down_test_frame,1),size(down_test_frame,2)))
-colormap defult
+figure
+imagesc(abs(reshape(imr,size(down_test_frame,1),size(down_test_frame,2))))
+
 
 
 %%
 %debugging
-r = 93;%take first 5000 pc 
+r = 100;%take first r pc 
 V_r = V_conj(1:r,:);%reduce to r-dimensions
 S_r = S(1:r,1:r);%reduce to r-dimensions
 A = S_r*V_r;%project to r-dimensions
@@ -128,3 +136,12 @@ plot(y_hat')
 hold off 
 legend('Ca2+ trace','model prediction')
 title(['number of the PCs used: ',num2str(r)])
+err_pre = y_hat-calcuim_trace';
+kk = histogram(err_pre);
+
+figure
+imagesc(abs(reshape(imr,size(down_test_frame,1),size(down_test_frame,2))))
+title(['number of the PCs used: ' num2str(r) ' abs(heatmap)'])
+colorbar
+figure
+imagesc((reshape(imr,size(down_test_frame,1),size(down_test_frame,2))))
