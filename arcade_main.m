@@ -36,10 +36,8 @@ vod_read = VideoReader(nov); %read the correspondence video
 frame_start = frame_number(1);%start frame
 frame_end = frame_number(end);%end frame
 %compress the video
-compress_factor = 0.25;
+compress_factor = 0.5;
 test_frame= read(vod_read,100);
-down_test_frame = imresize(test_frame(:,:,1), compress_factor);
-
 %masking 
 ball1= [416,-660,857];%upper ball [centerX1,centerY1,radius1]
 ball2= [280, 1290,860];%lower ball [centerX1,centerY1,radius1]
@@ -47,13 +45,21 @@ ref_frame_m = test_frame(:,:,1);
 douball_mask =fly_O_msk(ball1,ball2,ref_frame_m);% mask image
 figure
 imagesc(douball_mask.*double(ref_frame_m));
-
+ybound = [120, 746];
+xbound = [200,570];
+xlim(ybound)%boundary of x
+ylim(xbound)%boundary of y
+title('cleaned up image')
+im_crop = ref_frame_m(xbound(1):xbound(2),ybound(1):ybound(2));
+down_test_frame = imresize(im_crop, compress_factor);
 video_matrix = zeros(size(down_test_frame,1)*size(down_test_frame,2),length(frame_number));% data matrix, each column represent one frame
 parfor i = 1:length(frame_number) %use parallel worker for faster computing 
     frame_idx = frame_number(i);
     temp_frame = read(vod_read,frame_idx);
     temp_frame1 = double(temp_frame(:,:,1)).*douball_mask;%reduce to 2 dimension and mask;
-    temp_frame2 = imresize(temp_frame1, compress_factor);%video compressing
+    %add down size here
+    temp_frame12 = temp_frame1(xbound(1):xbound(2),ybound(1):ybound(2));
+    temp_frame2 = imresize(temp_frame12, compress_factor);%video compressing
     video_matrix(:,i)= reshape( temp_frame2,[],1);% this shold obtain the frames in their order
 end
 
@@ -92,10 +98,6 @@ S_r = S(1:r,1:r);%reduce to r-dimensions
 A = S_r*V_r;%project to r-dimensions
 %% lasso
 [B,FitInfo] = lasso(A',calcuim_trace);
-% mean_c = mean(calcuim_trace);
-% normlized_c =calcuim_trace-mean_c;
-%beta =normlized_c\A';
-%y_hat = beta*A;
 Bb= B(:,1)';
 U_r = U(:,1:r);
 imr = U_r*Bb';
@@ -107,9 +109,10 @@ plot(y_hat')
 hold off 
 legend('Ca2+ trace','model prediction')
 title(['number of the pc used ',num2str(r)])
+figure
 err_pre = y_hat-calcuim_trace;
 kk = histogram(err_pre);
-
+title(['mean of Ca2+ trace' num2str(mean(calcuim_trace))])
 figure
 imagesc(down_test_frame);
 colormap(gray)
@@ -120,15 +123,21 @@ imagesc(abs(reshape(imr,size(down_test_frame,1),size(down_test_frame,2))))
 
 %%
 %debugging
+cd('D:\TuthillLab\figure\220119')
+close all
 r = 100;%take first r pc 
 V_r = V_conj(1:r,:);%reduce to r-dimensions
 S_r = S(1:r,1:r);%reduce to r-dimensions
 A = S_r*V_r;%project to r-dimensions
 % lasso
+singular_value_rank = 1; 
 [B,FitInfo] = lasso(A',calcuim_trace);%lasso
-Bb= B(:,1)';
+Bb= B(:,singular_value_rank)';
 U_r = U(:,1:r);
-y_hat = (Bb*A)+FitInfo.Intercept(1)*ones(1,length(calcuim_trace));%the out put
+imr = U_r*Bb';
+y_hat = (Bb*A)+FitInfo.Intercept(1)*ones(1,14527);
+
+%plotting
 figure
 hold on 
 plot(calcuim_trace)
@@ -136,12 +145,23 @@ plot(y_hat')
 hold off 
 legend('Ca2+ trace','model prediction')
 title(['number of the PCs used: ',num2str(r)])
+saveas(gca,['MP_' num2str(r) '.jpg'])
+
+figure
 err_pre = y_hat-calcuim_trace';
 kk = histogram(err_pre);
+title(['mean of Ca2+ trace' num2str(mean(calcuim_trace))])
+saveas(gca,['eph_',num2str(r) '.jpg'])
 
 figure
 imagesc(abs(reshape(imr,size(down_test_frame,1),size(down_test_frame,2))))
 title(['number of the PCs used: ' num2str(r) ' abs(heatmap)'])
 colorbar
+saveas(gca,['abshm_',num2str(r) '.jpg'])
+
+
 figure
 imagesc((reshape(imr,size(down_test_frame,1),size(down_test_frame,2))))
+colorbar
+title(['number of the PCs used: ' num2str(r) ' heatmap'])
+saveas(gca,['hm_' num2str(r) '.jpg'])
