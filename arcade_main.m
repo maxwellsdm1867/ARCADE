@@ -11,7 +11,7 @@ clc
 %Mian steps are as follow:
 % 0. Specify working directory and load the raw and metadata
 % 1. Data parcing and extracting for the csv data file
-% 2. Video importing and processing, masking two balls
+% 2. Video importing and processing, masking two balls, cropping 
 % 3. Dimension reduction using SVD
 
 %% Specify working directory and load the raw and metadata
@@ -19,7 +19,7 @@ cd('D:\TuthillLab\data')%go to the data folder, it should contain chris_data.mat
 load('D:\TuthillLab\data\chris_data.mat')%loading the convterd csv table, this contains the metadata and calcuim trace
 
 %% 1. Data parcing and extracting for the csv data file
-nov = '20210716_A01_00002_legCam_1.avi'; %name of the video wish to analyze
+nov = '20210713_A01_00001_legCam_1.avi'; %name of the video wish to analyze
 
 data = data(2:end,:);%take out the first row, since origianlly it's just text
 trail_id =nov(1:18); % trail ID in the data table
@@ -30,6 +30,13 @@ trail_target_index = find(trail_list == trail_id);% index of the video we want t
 sub_data = data(trail_target_index,:); %extract the subset of the data that is realted to the video trail
 calcuim_trace = double(string(sub_data{:,7}));%calcuim traces
 frame_number = double(string(sub_data{:,6}));%frame number for alignment
+analyze_chek = double(string(sub_data{:,11}));%if zero then don't analyse 
+%meta data 
+metaData.roi = string(sub_data{1,1});%reigon of interest 
+meta.Driver = string(sub_data{1,2});%driver line of the fly 
+meta.Ball = string(sub_data{1,3});%on ball or off ball
+meta.Animal = string(sub_data{1,4});%animal id 
+
 
 %% Video importing and processing
 vod_read = VideoReader(nov); %read the correspondence video
@@ -46,10 +53,13 @@ douball_mask =fly_O_msk(ball1,ball2,ref_frame_m);% mask image
 figure
 imagesc(douball_mask.*double(ref_frame_m));
 ybound = [120, 746];
-xbound = [200,570];
+%xbound = [200,570];
+xbound = [200,450];
+axis image
 xlim(ybound)%boundary of x
 ylim(xbound)%boundary of y
 title('cleaned up image')
+colormap('gray')
 im_crop = ref_frame_m(xbound(1):xbound(2),ybound(1):ybound(2));
 down_test_frame = imresize(im_crop, compress_factor);
 video_matrix = zeros(size(down_test_frame,1)*size(down_test_frame,2),length(frame_number));% data matrix, each column represent one frame
@@ -97,11 +107,11 @@ V_r = V_conj(1:r,:);%reduce to r-dimensions
 S_r = S(1:r,1:r);%reduce to r-dimensions
 A = S_r*V_r;%project to r-dimensions
 %% lasso
-[B,FitInfo] = lasso(A',calcuim_trace);
+[B,FitInfo] = lasso(A',calcuim_trace,'Alpha',0.5);
 Bb= B(:,1)';
 U_r = U(:,1:r);
 imr = U_r*Bb';
-y_hat = (Bb*A)+FitInfo.Intercept(1)*ones(1,14527);
+y_hat = (Bb*A)+FitInfo.Intercept(1)*ones(1,length((Bb*A)));
 figure
 hold on 
 plot(calcuim_trace)
@@ -123,19 +133,30 @@ imagesc(abs(reshape(imr,size(down_test_frame,1),size(down_test_frame,2))))
 
 %%
 %debugging
-cd('D:\TuthillLab\figure\220119')
+cd('D:\TuthillLab\figure\220202')
+mkdir(trail_id)
+cd(trail_id)
 close all
-r = 100;%take first r pc 
+r =10;%take first r pc 
 V_r = V_conj(1:r,:);%reduce to r-dimensions
 S_r = S(1:r,1:r);%reduce to r-dimensions
 A = S_r*V_r;%project to r-dimensions
 % lasso
-singular_value_rank = 1; 
-[B,FitInfo] = lasso(A',calcuim_trace);%lasso
+
+[B,FitInfo] = lasso(A',calcuim_trace,'Alpha',0.5);%elsAtic net
+[~,min_idx]= min(FitInfo.MSE);%find the minium lambda values
+singular_value_rank = min_idx; 
 Bb= B(:,singular_value_rank)';
 U_r = U(:,1:r);
 imr = U_r*Bb';
-y_hat = (Bb*A)+FitInfo.Intercept(1)*ones(1,14527);
+y_hat = (Bb*A)+FitInfo.Intercept(singular_value_rank )*ones(1,length((Bb*A)));
+%threshold Bb(beta values here)
+beta_thrs =0;% 0.003;%thrshold of beta values
+Bb_threshold = Bb;
+Bb_threshold(abs(Bb)<beta_thrs) = 0;
+imr_threshold = U_r*Bb_threshold';
+imt_v = 0;
+imr_threshold(abs(imr_threshold)<imt_v) = 0;
 
 %plotting
 figure
@@ -150,18 +171,65 @@ saveas(gca,['MP_' num2str(r) '.jpg'])
 figure
 err_pre = y_hat-calcuim_trace';
 kk = histogram(err_pre);
+xlabel('difference values')
+ylabel('count')
 title(['mean of Ca2+ trace' num2str(mean(calcuim_trace))])
 saveas(gca,['eph_',num2str(r) '.jpg'])
 
 figure
-imagesc(abs(reshape(imr,size(down_test_frame,1),size(down_test_frame,2))))
+imagesc(abs(reshape(imr_threshold,size(down_test_frame,1),size(down_test_frame,2))))
+axis square
 title(['number of the PCs used: ' num2str(r) ' abs(heatmap)'])
 colorbar
 saveas(gca,['abshm_',num2str(r) '.jpg'])
 
+%model sceletion 
+figure
+plot(FitInfo.Lambda, FitInfo.MSE)
+xlabel('Lambda')
+ylabel('MSE')
+saveas(gca,['models_',num2str(r) '.jpg'])
+
+
 
 figure
-imagesc((reshape(imr,size(down_test_frame,1),size(down_test_frame,2))))
-colorbar
-title(['number of the PCs used: ' num2str(r) ' heatmap'])
-saveas(gca,['hm_' num2str(r) '.jpg'])
+sk = histogram(Bb);
+title('Beta values distrubtion')
+saveas(gca,['bvd_' num2str(r) '.jpg'])
+
+
+figure
+imagesc(douball_mask.*double(ref_frame_m));
+ybound = [120, 746];
+%xbound = [200,570];
+xbound = [200,450];
+axis square
+xlim(ybound)%boundary of x
+ylim(xbound)%boundary of y
+title('cleaned up image')
+colormap('gray')
+saveas(gca,['og_' num2str(r) '.jpg'])
+
+
+% figure
+% imagesc(*abs(reshape(imr_threshold,size(down_test_frame,1),size(down_test_frame,2))))
+% axis square
+% title(['number of the PCs used: ' num2str(r) ' abs(heatmap)'])
+% colorbar
+% colormap hot
+% saveas(gca,['abshm_',num2str(r) '.jpg'])
+
+% %% error scaling
+% in_range = 1:5:100;
+% error_vec = error_scaling(in_range,calcuim_trace,A,V_conj,S_r);
+% 
+% 
+% 
+% V_r = V_conj(1:r,:);%reduce to r-dimensions
+% S_r = S(1:r,1:r);%reduce to r-dimensions
+% A = S_r*V_r;%project to r-dimensions
+% % lasso
+% singular_value_rank = 1; 
+% [B,FitInfo] = lasso(A',calcuim_trace);%lasso
+% Bb= B(:,singular_value_rank)';
+% 
