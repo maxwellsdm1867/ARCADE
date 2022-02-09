@@ -19,7 +19,7 @@ cd('D:\TuthillLab\data')%go to the data folder, it should contain chris_data.mat
 load('D:\TuthillLab\data\chris_data.mat')%loading the convterd csv table, this contains the metadata and calcuim trace
 
 %% 1. Data parcing and extracting for the csv data file
-nov = '20210713_A01_00001_legCam_1.avi'; %name of the video wish to analyze
+nov = '20210716_A01_00002_legCam_1.avi'; %name of the video wish to analyze
 
 data = data(2:end,:);%take out the first row, since origianlly it's just text
 trail_id =nov(1:18); % trail ID in the data table
@@ -28,15 +28,20 @@ trail_id =nov(1:18); % trail ID in the data table
 trail_list = string(data{:,5});% list of trails extracted from the data
 trail_target_index = find(trail_list == trail_id);% index of the video we want to analyze
 sub_data = data(trail_target_index,:); %extract the subset of the data that is realted to the video trail
-calcuim_trace = double(string(sub_data{:,7}));%calcuim traces
-frame_number = double(string(sub_data{:,6}));%frame number for alignment
+calcuim_trace_pre = double(string(sub_data{:,7}));%calcuim traces
+frame_number_pre = double(string(sub_data{:,6}));%frame number for alignment
 analyze_chek = double(string(sub_data{:,11}));%if zero then don't analyse 
+analyze_flag = sum(analyze_chek)/length(analyze_chek);%right percentage
+calcuim_trace = calcuim_trace_pre(analyze_chek==1);%clean the calcuim trace
+frame_number = frame_number_pre(analyze_chek==1);%clean the frame number
+
 %meta data 
 metaData.roi = string(sub_data{1,1});%reigon of interest 
-meta.Driver = string(sub_data{1,2});%driver line of the fly 
-meta.Ball = string(sub_data{1,3});%on ball or off ball
-meta.Animal = string(sub_data{1,4});%animal id 
-
+metaData.driver = string(sub_data{1,2});%driver line of the fly 
+metaData.ball = string(sub_data{1,3});%on ball or off ball
+metaData.animal = string(sub_data{1,4});%animal id 
+metaData.id = trail_id; % trail id number 
+metaData%display meta data
 
 %% Video importing and processing
 vod_read = VideoReader(nov); %read the correspondence video
@@ -62,7 +67,7 @@ ylim(xbound)%boundary of y
 title('cleaned up image')
 colormap('gray')
 
-
+%read the video frame by frame
 im_crop = ref_frame_m(xbound(1):xbound(2),ybound(1):ybound(2));
 down_test_frame = imresize(im_crop, compress_factor);
 video_matrix = zeros(size(down_test_frame,1)*size(down_test_frame,2),length(frame_number));% data matrix, each column represent one frame
@@ -103,36 +108,12 @@ figure
 stairs((cumsum(sv)/sum(sv)).*(cumsum(sv)/sum(sv)))
 title('Explained varience')
 V_conj = V';
-r = 100;%take first r pcs 
-V_r = V_conj(1:r,:);%reduce to r-dimensions
-%V_r = V_conj(:,1:r);%reduce to r-dimensions
-
-S_r = S(1:r,1:r);%reduce to r-dimensions
-A = S_r*V_r;%project to r-dimensions
-%% lasso
-[B,FitInfo] = lasso(A',calcuim_trace,'Alpha',0.5);
-Bb= B(:,1)';
-U_r = U(:,1:r);
-imr = U_r*Bb';
-y_hat = (Bb*A)+FitInfo.Intercept(1)*ones(1,length((Bb*A)));
-figure
-hold on 
-plot(calcuim_trace)
-plot(y_hat')
-hold off 
-legend('Ca2+ trace','model prediction')
-title(['number of the pc used ',num2str(r)])
-figure
-err_pre = y_hat-calcuim_trace;
-kk = histogram(err_pre);
-title(['mean of Ca2+ trace' num2str(mean(calcuim_trace))])
-figure
-imagesc(down_test_frame);
-colormap(gray)
-figure
-imagesc(abs(reshape(imr,size(down_test_frame,1),size(down_test_frame,2))))
-
-
+% r = 100;%take first r pcs 
+% V_r = V_conj(1:r,:);%reduce to r-dimensions
+% %V_r = V_conj(:,1:r);%reduce to r-dimensions
+% 
+% S_r = S(1:r,1:r);%reduce to r-dimensions
+% A = S_r*V_r;%project to r-dimensions
 
 %%
 %debugging
@@ -148,9 +129,9 @@ A = S_r*V_r;%project to r-dimensions
 
 [B,FitInfo] = lasso(A',calcuim_trace,'Alpha',0.5);%elsAtic net
 [~,min_idx]= min(FitInfo.MSE);%find the minium lambda values
-singular_value_rank = min_idx; 
-Bb= B(:,singular_value_rank)';
-U_r = U(:,1:r);
+singular_value_rank = min_idx; %use the correspond singular value
+Bb= B(:,singular_value_rank)';%get n-th row out
+U_r = U(:,1:r);%reduce U to r by b
 imr = U_r*Bb';
 y_hat = (Bb*A)+FitInfo.Intercept(singular_value_rank )*ones(1,length((Bb*A)));
 %threshold Bb(beta values here)
@@ -188,6 +169,9 @@ axis square
 title(['number of the PCs used: ' num2str(r) ' abs(heatmap)'])
 axis image
 colorbar
+meta_text = ['roi=' metaData.roi 'ball=' metaData. ball 'animal=' metaData.animal];
+text_dim = [0 0 .9 .3];
+annotation('textbox',text_dim,'String',meta_text,'FitBoxToText','on');%text box
 saveas(gca,['abshm_',num2str(r) '.jpg'])
 
 %model sceletion 
@@ -215,10 +199,15 @@ xlim(ybound)%boundary of x
 ylim(xbound)%boundary of y
 title('cleaned up image')
 colormap('gray')
+annotation('textbox',text_dim,'String',meta_text,'FitBoxToText','on');%text box
 saveas(gca,['og_' num2str(r) '.jpg'])
 
 %add in textbox to display the meta data
 
+
+
+
+%% -----------------------------------------------------------%%
 % figure
 % imagesc(*abs(reshape(imr_threshold,size(down_test_frame,1),size(down_test_frame,2))))
 % axis square
@@ -240,4 +229,28 @@ saveas(gca,['og_' num2str(r) '.jpg'])
 % singular_value_rank = 1; 
 % [B,FitInfo] = lasso(A',calcuim_trace);%lasso
 % Bb= B(:,singular_value_rank)';
+% 
+
+% %%% lasso
+% [B,FitInfo] = lasso(A',calcuim_trace,'Alpha',0.5);
+% Bb= B(:,1)';
+% U_r = U(:,1:r);
+% imr = U_r*Bb';
+% y_hat = (Bb*A)+FitInfo.Intercept(1)*ones(1,length((Bb*A)));
+% figure
+% hold on 
+% plot(calcuim_trace)
+% plot(y_hat')
+% hold off 
+% legend('Ca2+ trace','model prediction')
+% title(['number of the pc used ',num2str(r)])
+% figure
+% err_pre = y_hat-calcuim_trace;
+% kk = histogram(err_pre);
+% title(['mean of Ca2+ trace' num2str(mean(calcuim_trace))])
+% figure
+% imagesc(down_test_frame);
+% colormap(gray)
+% figure
+% imagesc(abs(reshape(imr,size(down_test_frame,1),size(down_test_frame,2))))
 % 
