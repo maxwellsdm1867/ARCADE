@@ -50,6 +50,7 @@ ball1= [416,-660,857];%upper ball [centerX1,centerY1,radius1]
 ball2= [280, 1290,860];%lower ball [centerX1,centerY1,radius1]
 ref_frame_m = test_frame(:,:,1);
 douball_mask =fly_O_msk(ball1,ball2,ref_frame_m);% mask image
+%sanity check figure
 figure
 imagesc(douball_mask.*double(ref_frame_m));
 ybound = [120, 746];
@@ -60,6 +61,8 @@ xlim(ybound)%boundary of x
 ylim(xbound)%boundary of y
 title('cleaned up image')
 colormap('gray')
+
+
 im_crop = ref_frame_m(xbound(1):xbound(2),ybound(1):ybound(2));
 down_test_frame = imresize(im_crop, compress_factor);
 video_matrix = zeros(size(down_test_frame,1)*size(down_test_frame,2),length(frame_number));% data matrix, each column represent one frame
@@ -159,6 +162,9 @@ imt_v = 0;
 imr_threshold(abs(imr_threshold)<imt_v) = 0;
 
 %plotting
+
+%add in textbox to display the meta data%TO DO
+
 figure
 hold on 
 plot(calcuim_trace)
@@ -180,6 +186,7 @@ figure
 imagesc(abs(reshape(imr_threshold,size(down_test_frame,1),size(down_test_frame,2))))
 axis square
 title(['number of the PCs used: ' num2str(r) ' abs(heatmap)'])
+axis image
 colorbar
 saveas(gca,['abshm_',num2str(r) '.jpg'])
 
@@ -203,13 +210,14 @@ imagesc(douball_mask.*double(ref_frame_m));
 ybound = [120, 746];
 %xbound = [200,570];
 xbound = [200,450];
-axis square
+axis image
 xlim(ybound)%boundary of x
 ylim(xbound)%boundary of y
 title('cleaned up image')
 colormap('gray')
 saveas(gca,['og_' num2str(r) '.jpg'])
 
+%add in textbox to display the meta data
 
 % figure
 % imagesc(*abs(reshape(imr_threshold,size(down_test_frame,1),size(down_test_frame,2))))
