@@ -19,7 +19,7 @@ cd('D:\TuthillLab\data')%go to the data folder, it should contain chris_data.mat
 load('D:\TuthillLab\data\chris_data.mat')%loading the convterd csv table, this contains the metadata and calcuim trace
 
 %% 1. Data parcing and extracting for the csv data file
-nov = '20210716_A01_00002_legCam_1.avi'; %name of the video wish to analyze
+nov = '20210713_A01_00010_legCam_1.avi'; %name of the video wish to analyze
 
 data = data(2:end,:);%take out the first row, since origianlly it's just text
 trail_id =nov(1:18); % trail ID in the data table
@@ -121,16 +121,25 @@ cd('D:\TuthillLab\figure\220202')
 mkdir(trail_id)
 cd(trail_id)
 close all
-r =10;%take first r pc 
+r =100;%take first r pc 
 V_r = V_conj(1:r,:);%reduce to r-dimensions
 S_r = S(1:r,1:r);%reduce to r-dimensions
 A = S_r*V_r;%project to r-dimensions
 % lasso
 
 [B,FitInfo] = lasso(A',calcuim_trace,'Alpha',0.5);%elsAtic net
-[~,min_idx]= min(FitInfo.MSE);%find the minium lambda values
-singular_value_rank = min_idx; %use the correspond singular value
+%[~,min_idx]= min(FitInfo.MSE);%find the minium lambd
+%wirte out the regularization term here
+% extarct the sparisity of each beta vextors and plot it against MSE 
+sparsity = zeros(1,r);
+for b_idx = 1: size(B,2)
+    temp_b =B(:,b_idx) ;
+    sparsity(b_idx) =( length(find(abs(temp_b)<= 10^-7))/r);%percentage of elements being zero;
+end
+singular_value_rank = 70; %use the correspond singular value
 Bb= B(:,singular_value_rank)';%get n-th row out
+
+
 U_r = U(:,1:r);%reduce U to r by b
 imr = U_r*Bb';
 y_hat = (Bb*A)+FitInfo.Intercept(singular_value_rank )*ones(1,length((Bb*A)));
@@ -163,22 +172,15 @@ ylabel('count')
 title(['mean of Ca2+ trace' num2str(mean(calcuim_trace))])
 saveas(gca,['eph_',num2str(r) '.jpg'])
 
-figure
-imagesc(abs(reshape(imr_threshold,size(down_test_frame,1),size(down_test_frame,2))))
-axis square
-title(['number of the PCs used: ' num2str(r) ' abs(heatmap)'])
-axis image
-colorbar
-meta_text = ['roi=' metaData.roi 'ball=' metaData. ball 'animal=' metaData.animal];
-text_dim = [0 0 .9 .3];
-annotation('textbox',text_dim,'String',meta_text,'FitBoxToText','on');%text box
-saveas(gca,['abshm_',num2str(r) '.jpg'])
 
 %model sceletion 
 figure
-plot(FitInfo.Lambda, FitInfo.MSE)
-xlabel('Lambda')
-ylabel('MSE')
+hold on 
+plot(FitInfo.MSE,sparsity)
+scatter(FitInfo.MSE(singular_value_rank ),sparsity(singular_value_rank ))
+ylabel('%of zeros in beta')
+xlabel('MSE')
+hold off
 saveas(gca,['models_',num2str(r) '.jpg'])
 
 
@@ -190,15 +192,24 @@ saveas(gca,['bvd_' num2str(r) '.jpg'])
 
 
 figure
+subplot(2,1,1)
 imagesc(douball_mask.*double(ref_frame_m));
 ybound = [120, 746];
 %xbound = [200,570];
 xbound = [200,450];
+colorbar
 axis image
 xlim(ybound)%boundary of x
 ylim(xbound)%boundary of y
-title('cleaned up image')
-colormap('gray')
+title('reference image')
+subplot(2,1,2)
+imagesc(abs(reshape(imr_threshold,size(down_test_frame,1),size(down_test_frame,2))))
+meta_text =string(strjoin(['roi=' metaData.roi 'ball=' metaData. ball 'animal=' metaData.animal]));
+text_dim = [0.3 0.25 0.5 .3 ];
+title(['number of the PCs used: ' num2str(r) ' abs(heatmap)'])
+axis image
+colorbar
+colormap('default')
 annotation('textbox',text_dim,'String',meta_text,'FitBoxToText','on');%text box
 saveas(gca,['og_' num2str(r) '.jpg'])
 
