@@ -26,7 +26,7 @@ cd('D:\TuthillLab\video')%go to the data folder, it should contain chris_data.ma
 load('D:\TuthillLab\video\data')%loading the convterd csv table, this contains the metadata and calcuim trace
 
 %% 1. Data parcing and extracting for the csv data file
-nov = '20200224_A01_00015_legCam_1.avi'; %name of the video wish to analyze
+nov = '20210713_A01_00001_legCam_1.avi'; %name of the video wish to analyze
 
 data = data(2:end,:);%take out the first row, since origianlly it's just text
 trail_id =nov(1:18); % trail ID in the data table
@@ -41,7 +41,7 @@ analyze_chek = double(string(sub_data{:,12}));%if zero then don't analyse
 analyze_flag = sum(analyze_chek)/length(analyze_chek);%right percentage
 walk_flag = double(string(sub_data{:,14}));
 rest_flag = double(string(sub_data{:,13}));
-flag_pole = analyze_chek%.*(walk_flag==0);%this is and opertaion 
+flag_pole = analyze_chek.*(walk_flag==0);%this is and opertaion 
 calcuim_trace = calcuim_trace_pre(flag_pole==1);%clean the calcuim trace
 frame_number = frame_number_pre(flag_pole==1);%clean the frame number
 
@@ -57,7 +57,7 @@ metaData%display meta data
 
 Fs =300;%SampleRate
 nfilt = 1000;%FilterOrder
-Fst = 0.001;%CutoffFrequency
+Fst = 0.01;%CutoffFrequency
 
 d_l = designfilt('lowpassfir','FilterOrder',nfilt, ...
                'CutoffFrequency',Fst,'SampleRate',Fs);
@@ -69,18 +69,9 @@ Fsth =0.8;%CutoffFrequency
 
 d_h= designfilt('highpassfir','FilterOrder',nfilt, ...
                'CutoffFrequency',Fsth,'SampleRate',Fs);        
-% calcuim_high = filter(d_h,calcuim_trace);           
-% delay_h = mean(grpdelay(d_h));
-% calcuim_mod_h = [calcuim_high(delay_h:end); mean(calcuim_trace(end-delay_h+1:end))*ones(delay_h-1,1)] ;
-
-calcuim_mod_h = calcuim_trace-calcuim_mod_l;
-figure
-hold on 
-plot(calcuim_trace)
-plot(calcuim_mod_l)
-plot(calcuim_mod_h)
-hold off
-title('calcuim check')
+calcuim_high = filter(d_h,calcuim_trace);           
+delay_h = mean(grpdelay(d_h));
+calcuim_mod_h = [calcuim_high(delay_h:end); mean(calcuim_trace(end-delay_h+1:end))*ones(delay_h-1,1)] ;
 
 
 
@@ -159,11 +150,11 @@ V_conj = V';
 target_calcuim = calcuim_mod_h;
 
 %debugging
-cd('D:\TuthillLab\figure\220309\20200224_A01_00015\no_walk')
+cd('D:\TuthillLab\figure\220309')
 mkdir(trail_id)
 cd(trail_id)
 close all
-r =50;%take first r pc
+r =k_components;%take first r pc
 V_r = V_conj(1:r,:);%reduce to r-dimensions
 S_r = S(1:r,1:r);%reduce to r-dimensions
 A = S_r*V_r;%project to r-dimensions
@@ -254,169 +245,3 @@ colormap('default')
 annotation('textbox',text_dim,'String',meta_text,'FitBoxToText','on');%text box
 saveas(gca,['og_' num2str(r) '_h.jpg'])
 
-%add in textbox to display the meta data
-
-
-%% low pass
-r =10;%take first r pc
-V_r = V_conj(1:r,:);%reduce to r-dimensions
-S_r = S(1:r,1:r);%reduce to r-dimensions
-A = S_r*V_r;%project to r-dimensions
-target_calcuim = calcuim_mod_l;
-[B,FitInfo] = lasso(A',target_calcuim,'Alpha',0.5);%elsAtic net
-[~,min_idx]= min(FitInfo.MSE);%find the minium lambd
-singular_value_rank = min_idx; %use the correspond singular value
-Bb= B(:,singular_value_rank)';%get n-th row out
-
-
-U_r = U(:,1:r);%reduce U to r by b
-imr = U_r*Bb';
-y_hat = (Bb*A)+FitInfo.Intercept(singular_value_rank )*ones(1,length((Bb*A)));
-%threshold Bb(beta values here)
-beta_thrs =0;% 0.003;%thrshold of beta values
-Bb_threshold = Bb;
-Bb_threshold(abs(Bb)<beta_thrs) = 0;
-imr_threshold = U_r*Bb_threshold';
-imt_v = 0;
-imr_threshold(abs(imr_threshold)<imt_v) = 0;
-
-
-
-
-U_r = U(:,1:r);%reduce U to r by b
-imr = U_r*Bb';
-y_hat = (Bb*A)+FitInfo.Intercept(singular_value_rank )*ones(1,length((Bb*A)));
-%threshold Bb(beta values here)
-beta_thrs =0;% 0.003;%thrshold of beta values
-Bb_threshold = Bb;
-Bb_threshold(abs(Bb)<beta_thrs) = 0;
-imr_threshold = U_r*Bb_threshold';
-imt_v = 0;
-imr_threshold(abs(imr_threshold)<imt_v) = 0;
-figure
-hold on
-plot(target_calcuim)
-plot(y_hat')
-hold off
-legend('Ca2+ trace','model prediction')
-title(['number of the PCs used: ',num2str(r)])
-saveas(gca,['MP_' num2str(r) '_l.jpg'])
-figure
-subplot(2,1,1)
-imagesc(douball_mask.*double(ref_frame_m));
-ybound = [120, 746];
-%xbound = [200,570];
-xbound = [200,450];
-colorbar
-axis image
-xlim(ybound)%boundary of x
-ylim(xbound)%boundary of y
-title('reference image')
-subplot(2,1,2)
-imagesc(abs(reshape(imr_threshold,size(down_test_frame,1),size(down_test_frame,2))))
-meta_text =string(strjoin(['roi=' metaData.roi 'ball=' metaData. ball 'animal=' metaData.animal]));
-text_dim = [0.3 0.25 0.5 .3 ];
-title(['number of the PCs used: ' num2str(r) ' abs(heatmap)'])
-axis image
-colorbar
-colormap('default')
-annotation('textbox',text_dim,'String',meta_text,'FitBoxToText','on');%text box
-saveas(gca,['og_' num2str(r) '_l.jpg'])
-% orginal 
-
-
-target_calcuim = calcuim_trace;
-[B,FitInfo] = lasso(A',target_calcuim,'Alpha',0.5);%elsAtic net
-[~,min_idx]= min(FitInfo.MSE);%find the minium lambd
-singular_value_rank = min_idx; %use the correspond singular value
-Bb= B(:,singular_value_rank)';%get n-th row out
-
-
-U_r = U(:,1:r);%reduce U to r by b
-imr = U_r*Bb';
-y_hat = (Bb*A)+FitInfo.Intercept(singular_value_rank )*ones(1,length((Bb*A)));
-%threshold Bb(beta values here)
-beta_thrs =0;% 0.003;%thrshold of beta values
-Bb_threshold = Bb;
-Bb_threshold(abs(Bb)<beta_thrs) = 0;
-imr_threshold = U_r*Bb_threshold';
-imt_v = 0;
-imr_threshold(abs(imr_threshold)<imt_v) = 0;
-figure
-hold on
-plot(target_calcuim)
-plot(y_hat')
-hold off
-legend('Ca2+ trace','model prediction')
-title(['number of the PCs used: ',num2str(r)])
-saveas(gca,['MP_' num2str(r) '_o.jpg'])
-figure
-subplot(2,1,1)
-imagesc(douball_mask.*double(ref_frame_m));
-ybound = [120, 746];
-%xbound = [200,570];
-xbound = [200,450];
-colorbar
-axis image
-xlim(ybound)%boundary of x
-ylim(xbound)%boundary of y
-title('reference image')
-subplot(2,1,2)
-imagesc(abs(reshape(imr_threshold,size(down_test_frame,1),size(down_test_frame,2))))
-meta_text =string(strjoin(['roi=' metaData.roi 'ball=' metaData. ball 'animal=' metaData.animal]));
-text_dim = [0.3 0.25 0.5 .3 ];
-title(['number of the PCs used: ' num2str(r) ' abs(heatmap)'])
-axis image
-colorbar
-colormap('default')
-annotation('textbox',text_dim,'String',meta_text,'FitBoxToText','on');%text box
-saveas(gca,['og_' num2str(r) '_o.jpg'])
-
-
-%% -----------------------------------------------------------%% place holder
-% figure
-% imagesc(*abs(reshape(imr_threshold,size(down_test_frame,1),size(down_test_frame,2))))
-% axis square
-% title(['number of the PCs used: ' num2str(r) ' abs(heatmap)'])
-% colorbar
-% colormap hot
-% saveas(gca,['abshm_',num2str(r) '.jpg'])
-
-% %% error scaling
-% in_range = 1:5:100;
-% error_vec = error_scaling(in_range,calcuim_trace,A,V_conj,S_r);
-%
-%
-%
-% V_r = V_conj(1:r,:);%reduce to r-dimensions
-% S_r = S(1:r,1:r);%reduce to r-dimensions
-% A = S_r*V_r;%project to r-dimensions
-% % lasso
-% singular_value_rank = 1;
-% [B,FitInfo] = lasso(A',calcuim_trace);%lasso
-% Bb= B(:,singular_value_rank)';
-%
-
-% %%% lasso
-% [B,FitInfo] = lasso(A',calcuim_trace,'Alpha',0.5);
-% Bb= B(:,1)';
-% U_r = U(:,1:r);
-% imr = U_r*Bb';
-% y_hat = (Bb*A)+FitInfo.Intercept(1)*ones(1,length((Bb*A)));
-% figure
-% hold on
-% plot(calcuim_trace)
-% plot(y_hat')
-% hold off
-% legend('Ca2+ trace','model prediction')
-% title(['number of the pc used ',num2str(r)])
-% figure
-% err_pre = y_hat-calcuim_trace;
-% kk = histogram(err_pre);
-% title(['mean of Ca2+ trace' num2str(mean(calcuim_trace))])
-% figure
-% imagesc(down_test_frame);
-% colormap(gray)
-% figure
-% imagesc(abs(reshape(imr,size(down_test_frame,1),size(down_test_frame,2))))
-%

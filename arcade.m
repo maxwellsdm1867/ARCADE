@@ -8,20 +8,22 @@ classdef arcade
     
     properties
         metadataPath ='D:\TuthillLab\video';
-        videoPath = 'D:\TuthillLab\video';
+        videoPath = 'C:\Users\USER\Downloads\Data';
         fiugrePath 
         intermediatePath
         
         
-        data%data table file
+       
+    end
+    
+      properties (Access = private)
+           data%data table file
         metaVariableNames%metadate name
         epochList%list of unique epochs defined by trail name
         targetID%ID of the trails after the selector
         missFileName%files you need to down load
         checkedID%it will only reference the video on the computer
-    end
-    
-    
+      end
     
     
     methods
@@ -149,7 +151,7 @@ classdef arcade
            targetID = traget_trail;
         end %end of data selector
         
-        function [missFileName,checkedID] = epochCheck(obj,epochList,targetID)
+        function [missFileName,checkedID,trailList] = epochCheck(obj,epochList,targetID)
             %check and adjust how the eopch change the target.ID list so
             %that it won't reference the video which is not there
             cd(obj.videoPath)
@@ -158,17 +160,21 @@ classdef arcade
             %epochList = obj.targetList;
             filePassed = [];
             fileFailed = [];
+            trailList = [];
             for i = 1:length(targetList)
                 temp_name = epochList(targetList(i)).trail_id;
                 fn = [temp_name '_legCam_1.avi'];
                 if isfile(fn)
-                    
+                    trailList = [ trailList; temp_name];
                     filePassed = [filePassed; targetList(i)];
                 else
                     
                     fileFailed = [fileFailed; targetList(i)];
                 end
             end
+            
+            
+            
             if ~isempty(fileFailed)
                 missFileName =[];
                 for j = 1:length(fileFailed)
@@ -178,7 +184,9 @@ classdef arcade
             end
             
             missFileName = [];
-            checkedID = filePassed;         
+            checkedID = filePassed;   
+            cd(obj.metadataPath)
+            save('trailList','trailList')
         end%end of epochCheck
         
         function epochTree(obj,dataSplit)
