@@ -314,9 +314,11 @@ classdef arcade
             toc
         end%end of video reader glue
         
-        function [V_r,S_r,A,U] = videoPC(obj,k_components,dataMatrix)
+        function [V_r,S_r,A,B,imr,y_hat] = (obj,k_components,dataMatrix,targertTrace)
+            
+            
             tic
-            [U,S,V] = svds(dataMatrix,k_components);%SVD of data matrix
+            [U,S,V] = svds(video_matrix,k_components);%SVD of data matrix
             toc
             sv = diag(S);
             figure
@@ -327,20 +329,19 @@ classdef arcade
             V_r = V_conj(1:r,:);%reduce to r-dimensions
             S_r = S(1:r,1:r);%reduce to r-dimensions
             A = S_r*V_r;%project to r-dimensions
-           
-        end%end of video PC
-        
-        function[B,FitInfo,imr,y_hat]= lassoReconstruct(obj, U,A,targertTrace,r)
-             % lasso
+            % lasso
             [B,FitInfo] = lasso(A',targertTrace,'Alpha',0.5);%elsAtic net
             [~,min_idx]= min(FitInfo.MSE);%find the minium lambd
             singular_value_rank = min_idx; %use the correspond singular value
             Bb= B(:,singular_value_rank)';%get n-th row out
+            
+            
             U_r = U(:,1:r);%reduce U to r by b
             imr = U_r*Bb';
             y_hat = (Bb*A)+FitInfo.Intercept(singular_value_rank )*ones(1,length((Bb*A)));
-        end%end of lasso reconstruct 
-        
+            
+            
+        end%end of Calcuim recondturction
         
     end%end for methods
 end%end for the class

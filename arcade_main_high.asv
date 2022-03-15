@@ -26,7 +26,7 @@ cd('D:\TuthillLab\video')%go to the data folder, it should contain chris_data.ma
 load('D:\TuthillLab\video\data')%loading the convterd csv table, this contains the metadata and calcuim trace
 
 %% 1. Data parcing and extracting for the csv data file
-nov = '20211103_A01_00020_legCam_1.avi'; %name of the video wish to analyze
+nov = '20210713_A01_00001_legCam_1.avi'; %name of the video wish to analyze
 
 data = data(2:end,:);%take out the first row, since origianlly it's just text
 trail_id =nov(1:18); % trail ID in the data table
@@ -129,14 +129,8 @@ title('Explained varience')
 V_conj = V';
 
 %% 
-rect_difference = trace_difference;
-for i=1:length(rect_difference)
-if rect_difference(i)<0
-    rect_difference(i) =0;
-end
-end
-target_calcuim = calcuim_trace;
 
+target_calcuim = trace_difference;
 
 %debugging
 cd('D:\TuthillLab\figure\220309')
@@ -193,7 +187,6 @@ plot(prediction_trace)
 plot(trace_difference)
 hold off
 title('calcuim check')
-legend('calcuim trace','prediction trace','trace difference')
 saveas(gca,['cc_',num2str(r) '.jpg'])
 %model sceletion
 % figure

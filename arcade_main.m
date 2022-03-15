@@ -350,6 +350,7 @@ hold off
 legend('Ca2+ trace','model prediction')
 title(['number of the PCs used: ',num2str(r)])
 saveas(gca,['MP_' num2str(r) '_o.jpg'])
+
 figure
 subplot(2,1,1)
 imagesc(douball_mask.*double(ref_frame_m));
